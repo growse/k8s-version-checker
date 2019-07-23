@@ -4,11 +4,54 @@ import logging
 import re
 
 import coloredlogs
+import packaging
 import requests
 from kubernetes import client, config
+from packaging.version import parse, LegacyVersion, Version
+
 from requests import Response
 
 logger = logging.getLogger(__name__)
+
+
+def main():
+    # it works only if this script is run by K8s as a POD
+    try:
+        config.load_incluster_config()
+    except config.config_exception.ConfigException:
+        config.load_kube_config()
+
+    v1 = client.CoreV1Api()
+    ret = v1.list_pod_for_all_namespaces(watch=False)
+    pods = {(item.spec.node_name, status.image): {item.spec.node_name: status.image_id} for item in ret.items for status
+            in filter(is_docker_hub_image, item.status.container_statuses)}
+
+    for pod in pods:
+        image_name, tag = pod[1].split(":", 1)
+        registry_digest = get_docker_tag_digest(image_name, tag)
+        registry_tags = get_docker_registry_tags(image_name)
+        logger.info("Deployed Image: {image}:{tag}".format(image=image_name, tag=tag, server=pod[0]))
+        if is_versioned_tag(tag):
+            logger.debug("Available registry tags: {tags}".format(tags=registry_tags))
+            mapped_tags = sorted(filter(lambda x: isinstance(x, Version), map(parse, registry_tags)), reverse=True)
+            logger.debug("Filtered version tags: {tags}".format(tags=list(mapped_tags)))
+            if len(list(mapped_tags)) > 0:
+                newest_tag = list(mapped_tags)[0]
+                logger.debug("Newest tag is {tag}".format(tag=newest_tag))
+                if newest_tag > parse(tag):
+                    logger.warning("Newer tag available for {image}:{tag}: {new_tag}".format(image=image_name, tag=tag,
+                                                                                             new_tag=str(newest_tag)))
+
+        logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
+        for deployed_server in pods[pod]:
+            deployed_digest = pods[pod][deployed_server].split("@", 1)[1]
+            logger.info("Version on {server} is {digest}".format(server=deployed_server, digest=deployed_digest))
+            if deployed_digest != registry_digest:
+                logger.warning(
+                    "Updated image digest exists for {image}:{tag} running on {server}".format(image=image_name,
+                                                                                               tag=tag,
+                                                                                               server=deployed_server))
+        break
 
 
 def is_docker_hub_image(status) -> bool:
@@ -52,36 +95,7 @@ tag_version_regex = re.compile("v?(\\d+)")
 
 
 def is_versioned_tag(tag: str) -> bool:
-    return not not tag_version_regex.match(tag)
-
-
-def main():
-    # it works only if this script is run by K8s as a POD
-    try:
-        config.load_incluster_config()
-    except config.config_exception.ConfigException:
-        config.load_kube_config()
-
-    v1 = client.CoreV1Api()
-    ret = v1.list_pod_for_all_namespaces(watch=False)
-    pods = {(item.spec.node_name, status.image): {item.spec.node_name: status.image_id} for item in ret.items for status
-            in filter(is_docker_hub_image, item.status.container_statuses)}
-
-    for pod in pods:
-        image_name, tag = pod[1].split(":", 1)
-        registry_digest = get_docker_tag_digest(image_name, tag)
-        registry_tags = get_docker_registry_tags(image_name)
-        logger.info("Image: {image}:{tag}".format(image=image_name, tag=tag, server=pod[0]))
-        logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
-        for deployed_server in pods[pod]:
-            deployed_digest = pods[pod][deployed_server].split("@", 1)[1]
-            logger.info("Version on {server} is {digest}".format(server=deployed_server, digest=deployed_digest))
-            if deployed_digest != registry_digest:
-                logger.warning(
-                    "Updated image digest exists for {image}:{tag} running on {server}".format(image=image_name,
-                                                                                               tag=tag,
-                                                                                               server=deployed_server))
-        break
+    return isinstance(parse(tag), Version)
 
 
 def docker_auth(realm: str, service: str, scope: str) -> str:
