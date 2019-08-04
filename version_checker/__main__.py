@@ -67,7 +67,7 @@ def main(debug: bool, image_pattern: str, namespace: str) -> None:
             continue
         logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
         logger.debug("Pod digests: {digests}".format(digests=list(map(lambda pod: pod.image_id, pods))))
-        out_of_date_pods = filter(lambda pod: get_digest_from_image_status(pod.image_id) != registry_digest, pods)
+        out_of_date_pods = filter(lambda p: get_digest_from_image_status(p.image_id) != registry_digest, pods)
 
         for pod in out_of_date_pods:
             notifications.append(OutOfDatePodNotification(pod, registry_digest))

@@ -15,11 +15,11 @@
       This script can be figured using annotations on the pods themselves. Pods
       can be ignored with:
     
-      `growse.com/version-checker-ignore: "true"`
+      `growse.com/k8s-version-checker-ignore: "true"`
     
       And can have their elgiable tags scroped with a regular expression:
     
-      `growse.com/version-checker-tag-regex: "^v.+?-amd64$"
+      `growse.com/k8s-version-checker-tag-regex: "^v.+?-amd64$"
     
     Options:
       --debug               Enable debug logging

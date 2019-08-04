@@ -10,6 +10,9 @@ from version_checker.registry import is_docker_hub_image
 
 logger = logging.getLogger(__name__)
 
+IGNORE_ANNOTATION = "growse.com/k8s-version-checker-ignore"
+VERSION_PATTERN_ANNOTATION = "growse.com/k8s-version-checker-tag-regex"
+
 
 @dataclass(frozen=True)
 class Owner:
@@ -17,12 +20,14 @@ class Owner:
     name: str
     uid: str
 
+
 @dataclass(frozen=True)
 class Pod:
     server: str
     image: str
     owners: list
     image_id: str
+    tag_version_pattern_annotation: str
 
 
 def get_images_from_running_pods(namespace: str) -> dict:
@@ -42,12 +47,20 @@ def get_images_from_running_pods(namespace: str) -> dict:
             status.image,
             find_top_owners(flatten_list(item.metadata.owner_references),
                             replica_sets, deployments, statefulsets, daemonsets),
-            status.image_id)
-        for item in k8s_pod_response.items for status in filter(is_docker_hub_image, item.status.container_statuses)
+            status.image_id,
+            item.metadata.annotations.get(VERSION_PATTERN_ANNOTATION, "")
+            )
+        for item in filter(is_not_ignored_pod, k8s_pod_response.items) for status in
+        filter(is_docker_hub_image, item.status.container_statuses)
     ]
     sorted_pods = sorted(pods, key=get_pod_image)
     grouped_pods = {k: list(v) for k, v in groupby(sorted_pods, get_pod_image)}
     return grouped_pods
+
+
+def is_not_ignored_pod(item) -> bool:
+    return not (IGNORE_ANNOTATION in item.metadata.annotations and item.metadata.annotations[
+        IGNORE_ANNOTATION] == 'true')
 
 
 def find_top_owners(things: list, replica_sets: V1ReplicaSetList, deployments: V1DeploymentList,
