@@ -1,5 +1,7 @@
 import logging
 
+from version_checker.k8s import Pod
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,14 +17,18 @@ class NewTagNotification(object):
 
 
 class OutOfDatePodNotification(object):
-    def __init__(self, server: str, status: str, registry_digest: str):
-        self.server = server
-        self.status = status
+    def __init__(self, pod: Pod, registry_digest: str):
+        self.pod = pod
         self.registry_digest = registry_digest
 
     def __str__(self):
-        return "Registry image has been updated ({registry_digest}) for pod {status} on {server}".format(
-            registry_digest=self.registry_digest, status=self.status, server=self.server)
+        return "Registry image has been updated ({registry_digest}) for pod {status} on {server} (owned by {owners})".format(
+            registry_digest=self.registry_digest,
+            status=self.pod.image,
+            server=self.pod.server,
+            owners=", ".join(
+                list(map(lambda owner: "{kind}: {name} ({uid})".format(kind=owner.kind, name=owner.name, uid=owner.uid),
+                         self.pod.owners))))
 
 
 def log_notifications(notifications: list) -> None:

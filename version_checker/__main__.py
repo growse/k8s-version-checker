@@ -11,7 +11,7 @@ from version_checker.notification import NewTagNotification, log_notifications, 
 from version_checker.registry import is_versioned_tag, get_newest_tag, get_docker_tag_digest
 
 
-def get_digeest_from_image_status(image_status: str) -> str:
+def get_digest_from_image_status(image_status: str) -> str:
     if not ("@" in image_status and image_status.startswith("docker-pullable://")):
         raise Exception("Given image status is not a valid status: {status}".format(status=image_status))
     return image_status.split("@", 1)[1]
@@ -19,8 +19,9 @@ def get_digeest_from_image_status(image_status: str) -> str:
 
 @click.command("K8S pod image version checker", context_settings=dict(help_option_names=["-h", "--help"]))
 @click.option('--debug', is_flag=True, default=False, help='Enable debug logging')
-@click.option('--image-pattern', help='Only look at images matchin this pattern')
-def main(debug: bool, image_pattern: str) -> None:
+@click.option('--image-pattern', help='Only look at images matching this pattern')
+@click.option('--namespace', help='Only look in this namespace')
+def main(debug: bool, image_pattern: str, namespace: str) -> None:
     """
     Checks a kubernetes cluster to see if any running pods, cron jobs or deployments have updated image tags or image
     digests on their repositories.
@@ -42,7 +43,7 @@ def main(debug: bool, image_pattern: str) -> None:
     except config.config_exception.ConfigException:
         config.load_kube_config()
 
-    images = get_images_from_running_pods()
+    images = get_images_from_running_pods(namespace)
 
     notifications = []
 
@@ -65,12 +66,11 @@ def main(debug: bool, image_pattern: str) -> None:
             logger.warning("No registry digest found for {image}:{tag}".format(image=image_name, tag=tag))
             continue
         logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
-        out_of_date_pods = {server: image_status for server, image_status in pods.items() if
-                            get_digeest_from_image_status(image_status)
-                            != registry_digest}
+        logger.debug("Pod digests: {digests}".format(digests=list(map(lambda pod: pod.image_id, pods))))
+        out_of_date_pods = filter(lambda pod: get_digest_from_image_status(pod.image_id) != registry_digest, pods)
 
-        for server, status in out_of_date_pods.items():
-            notifications.append(OutOfDatePodNotification(server, status, registry_digest))
+        for pod in out_of_date_pods:
+            notifications.append(OutOfDatePodNotification(pod, registry_digest))
 
     log_notifications(notifications)
 
