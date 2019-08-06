@@ -1,7 +1,5 @@
 import logging
 
-from version_checker.k8s import Pod
-
 logger = logging.getLogger(__name__)
 
 
@@ -17,7 +15,7 @@ class NewTagNotification(object):
 
 
 class OutOfDatePodNotification(object):
-    def __init__(self, pod: Pod, registry_digest: str):
+    def __init__(self, pod, registry_digest: str):
         self.pod = pod
         self.registry_digest = registry_digest
 

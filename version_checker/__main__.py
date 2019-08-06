@@ -6,7 +6,7 @@ import coloredlogs
 from kubernetes import config
 from packaging.version import parse
 
-from version_checker.k8s import get_images_from_running_pods
+from version_checker.k8s import get_top_level_resources
 from version_checker.notification import NewTagNotification, log_notifications, OutOfDatePodNotification
 from version_checker.registry import is_versioned_tag, get_newest_tag, get_docker_tag_digest
 
@@ -43,34 +43,35 @@ def main(debug: bool, image_pattern: str, namespace: str) -> None:
     except config.config_exception.ConfigException:
         config.load_kube_config()
 
-    images = get_images_from_running_pods(namespace)
+    images = get_top_level_resources(namespace)
 
     notifications = []
 
-    for image, pods in sorted(images.items()):
-        image_name, tag = image.split(":", 1)
-        if image_pattern and not re.match(image_pattern, image_name):
-            continue
-        logger.info("Considering: {image}:{tag}".format(image=image_name, tag=tag))
-
-        if is_versioned_tag(tag):
-            newest_tag = get_newest_tag(image_name)
-            logger.info("Newest tag for this image is {tag}".format(tag=newest_tag))
-            if newest_tag != "" and newest_tag > parse(tag):
-                notifications.append(NewTagNotification(image_name, tag, newest_tag))
-        if len(pods) == 0:
-            continue
-
-        registry_digest = get_docker_tag_digest(image_name, tag)
-        if not registry_digest:
-            logger.warning("No registry digest found for {image}:{tag}".format(image=image_name, tag=tag))
-            continue
-        logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
-        logger.debug("Pod digests: {digests}".format(digests=list(map(lambda pod: pod.image_id, pods))))
-        out_of_date_pods = filter(lambda p: get_digest_from_image_status(p.image_id) != registry_digest, pods)
-
-        for pod in out_of_date_pods:
-            notifications.append(OutOfDatePodNotification(pod, registry_digest))
+    for resource, containers in sorted(images.items()):
+        logger.info("Considering {kind}: {name}".format(kind=resource.kind, name=resource.name))
+        for image in resource.image_spec:
+            logger.info("{kind} has image defined: {image}".format(kind=resource.kind,image=image))
+            image_name, tag = image.split(":", 1)
+            if image_pattern and not re.match(image_pattern, image_name):
+                continue
+            if is_versioned_tag(tag):
+                newest_tag = get_newest_tag(image_name)
+                logger.info("Newest tag for this image is {tag}".format(tag=newest_tag))
+                if newest_tag != "" and newest_tag > parse(tag):
+                    notifications.append(NewTagNotification(image_name, tag, newest_tag))
+        # if len(containers) == 0:
+        #     continue
+        #
+        # registry_digest = get_docker_tag_digest(image_name, tag)
+        # if not registry_digest:
+        #     logger.warning("No registry digest found for {image}:{tag}".format(image=image_name, tag=tag))
+        #     continue
+        # logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
+        # logger.debug("Pod digests: {digests}".format(digests=list(map(lambda pod: pod.image_id, containers))))
+        # out_of_date_pods = filter(lambda p: get_digest_from_image_status(p.image_id) != registry_digest, containers)
+        #
+        # for pod in out_of_date_pods:
+        #     notifications.append(OutOfDatePodNotification(pod, registry_digest))
 
     log_notifications(notifications)
 
