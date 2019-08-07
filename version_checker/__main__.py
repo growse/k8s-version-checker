@@ -1,20 +1,17 @@
 import logging
 import re
+from typing import Optional, List
 
 import click
 import coloredlogs
 from kubernetes import config
 from packaging.version import parse
 
-from version_checker.k8s import get_top_level_resources
-from version_checker.notification import NewTagNotification, log_notifications, OutOfDatePodNotification
-from version_checker.registry import is_versioned_tag, get_newest_tag, get_docker_tag_digest
-
-
-def get_digest_from_image_status(image_status: str) -> str:
-    if not ("@" in image_status and image_status.startswith("docker-pullable://")):
-        raise Exception("Given image status is not a valid status: {status}".format(status=image_status))
-    return image_status.split("@", 1)[1]
+from version_checker.k8s import get_top_level_resources, Resource, Container
+from version_checker.notification import NewTagNotification, log_notifications, Notification, \
+    OutOfDateContainerNotification
+from version_checker.registry import is_versioned_tag, get_newest_tag, get_docker_tag_digest, \
+    get_digest_from_image_status
 
 
 @click.command("K8S pod image version checker", context_settings=dict(help_option_names=["-h", "--help"]))
@@ -49,31 +46,49 @@ def main(debug: bool, image_pattern: str, namespace: str) -> None:
 
     for resource, containers in sorted(images.items()):
         logger.info("Considering {kind}: {name}".format(kind=resource.kind, name=resource.name))
-        for image in resource.image_spec:
-            logger.info("{kind} has image defined: {image}".format(kind=resource.kind,image=image))
-            image_name, tag = image.split(":", 1)
-            if image_pattern and not re.match(image_pattern, image_name):
-                continue
-            if is_versioned_tag(tag):
-                newest_tag = get_newest_tag(image_name)
+        notifications.extend(check_resouce_for_new_image_tags(resource, image_pattern))
+        notifications.extend(check_resource_containers_for_updated_image_digests(resource, containers))
+
+    log_notifications(notifications)
+
+
+def check_resource_containers_for_updated_image_digests(resource: Resource, containers: List[Container]) \
+        -> List[Notification]:
+    notifications = []
+
+    if len(containers) == 0:
+        return notifications
+
+    for container in containers:
+        logger.info("Container spec'd with is {image} running {image_id}".format(image=container.image,
+                                                                                 image_id=container.image_id))
+        image_name, tag = container.image.split(":", 1)
+        registry_digest = get_docker_tag_digest(image_name, tag)
+        if not registry_digest:
+            logger.warning("No registry digest found for {image}:{tag}".format(image=image_name, tag=tag))
+            continue
+        logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
+        if registry_digest != get_digest_from_image_status(container.image_id):
+            notifications.append(OutOfDateContainerNotification(resource, container, registry_digest))
+    return notifications
+
+
+def check_resouce_for_new_image_tags(resource: Resource, image_pattern_to_match: Optional[str]) -> List[Notification]:
+    notifications = []
+    for image in resource.image_spec:
+        logger.info("{kind} has image defined: {image}".format(kind=resource.kind, image=image))
+        image_name, tag = image.split(":", 1)
+        if image_pattern_to_match and not re.match(image_pattern_to_match, image_name):
+            continue
+        if is_versioned_tag(tag):
+            newest_tag = get_newest_tag(image_name)
+            if newest_tag:
                 logger.info("Newest tag for this image is {tag}".format(tag=newest_tag))
                 if newest_tag != "" and newest_tag > parse(tag):
                     notifications.append(NewTagNotification(image_name, tag, newest_tag))
-        # if len(containers) == 0:
-        #     continue
-        #
-        # registry_digest = get_docker_tag_digest(image_name, tag)
-        # if not registry_digest:
-        #     logger.warning("No registry digest found for {image}:{tag}".format(image=image_name, tag=tag))
-        #     continue
-        # logger.info("Digest on registry for this image: {digest}".format(digest=registry_digest))
-        # logger.debug("Pod digests: {digests}".format(digests=list(map(lambda pod: pod.image_id, containers))))
-        # out_of_date_pods = filter(lambda p: get_digest_from_image_status(p.image_id) != registry_digest, containers)
-        #
-        # for pod in out_of_date_pods:
-        #     notifications.append(OutOfDatePodNotification(pod, registry_digest))
-
-    log_notifications(notifications)
+            else:
+                logger.warning("No eligable tags found for {image}".format(image=image_name))
+    return notifications
 
 
 def setup_logging(debug: bool) -> None:

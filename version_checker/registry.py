@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple
+from typing import Tuple, Optional
 
 import requests
 from packaging.version import Version, parse
@@ -13,7 +13,7 @@ digest_correct_hosts = [
 ]
 
 
-def get_newest_tag(image_name: str) -> str:
+def get_newest_tag(image_name: str) -> Optional[str]:
     registry_tags = get_docker_registry_tags(image_name)
     logger.debug("Available registry tags: {tags}".format(tags=registry_tags))
     mapped_tags = sorted(filter(lambda x: isinstance(x, Version), map(parse, registry_tags)), reverse=True)
@@ -21,7 +21,7 @@ def get_newest_tag(image_name: str) -> str:
     if len(list(mapped_tags)) > 0:
         newest_tag = list(mapped_tags)[0]
         return newest_tag
-    return ""
+    return None
 
 
 def docker_registry_api_get(url: str, headers=None) -> Response:
@@ -51,8 +51,11 @@ def get_registry_host_and_image(image: str) -> Tuple[str, str]:
         image_name = "library/{image}".format(image=image)
     elif image.count("/") == 2:
         host, image_name = image.split("/", 1)
+    elif image.count("/") == 1 and "." in image.split("/", 1)[0]:
+        host, image_name = image.split("/", 1)
     elif image.count("/") > 2:
         raise Exception("Illegal docker image name: {image}".format(image=image))
+
     return host, image_name
 
 
@@ -85,10 +88,11 @@ def docker_registry_auth(realm: str, service: str, scope: str) -> str:
     return response.json()["token"]
 
 
-def is_docker_hub_image(status) -> bool:
-    image_id = status.image_id
-    return "." not in image_id.split("@", 1)[0].split("/")[-2]
-
-
 def is_versioned_tag(tag: str) -> bool:
     return isinstance(parse(tag), Version)
+
+
+def get_digest_from_image_status(image_status: str) -> str:
+    if not ("@" in image_status and image_status.startswith("docker-pullable://")):
+        raise Exception("Given image status is not a valid status: {status}".format(status=image_status))
+    return image_status.split("@", 1)[1]
