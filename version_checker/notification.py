@@ -1,6 +1,6 @@
 import logging
 
-from version_checker.k8s import Container, Resource
+from version_checker.k8s.model import Resource, Container
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,9 @@ class NewTagNotification(Notification):
         self.newest_tag = newest_tag
 
     def __str__(self):
-        return "Newer tag available for {image}:{tag} -> {new_tag}".format(image=self.image, tag=self.tag,
-                                                                           new_tag=self.newest_tag)
+        return "Newer tag available for {image}:{tag} -> {new_tag}".format(
+            image=self.image, tag=self.tag, new_tag=self.newest_tag
+        )
 
 
 class OutOfDateContainerNotification(Notification):
@@ -31,7 +32,8 @@ class OutOfDateContainerNotification(Notification):
             registry_digest=self.registry_digest,
             status=self.container.image,
             server=self.container.server,
-            owner=self.owner)
+            owner=self.owner,
+        )
 
 
 def log_notifications(notifications: list) -> None:
