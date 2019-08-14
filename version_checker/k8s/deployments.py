@@ -14,7 +14,9 @@ from version_checker.k8s.model import Resource, Container
 
 
 def get_top_level_deployments(namespace: str) -> Dict[Resource, Container]:
-    get_deployment_fn, get_pod_fun, get_replica_set_fn = get_api_functions(namespace)
+    get_deployment_fn, get_pod_fn, get_replica_set_fn, get_stateful_set_fn, get_daemon_set_fn = get_api_functions(
+        namespace
+    )
 
     k8s_deployment_response = get_deployment_fn()
     top_level_not_ignored_deployments = [
@@ -40,7 +42,7 @@ def get_top_level_deployments(namespace: str) -> Dict[Resource, Container]:
         ): [
             get_container_from_status(pod.spec.node_name, container)
             for pod in get_pods_for_deployment(
-                deployment, get_replica_set_fn, get_pod_fun
+                deployment, get_replica_set_fn, get_pod_fn
             )
             for container in pod.status.container_statuses
         ]

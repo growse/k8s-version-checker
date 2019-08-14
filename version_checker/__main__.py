@@ -7,8 +7,11 @@ import coloredlogs
 from kubernetes import config
 from packaging.version import parse
 
+from version_checker.k8s.daemon_sets import get_top_level_daemon_sets
 from version_checker.k8s.deployments import get_top_level_deployments
 from version_checker.k8s.model import Resource, Container
+from version_checker.k8s.pods import get_top_level_pods
+from version_checker.k8s.stateful_sets import get_top_level_stateful_sets
 from version_checker.notification import (
     NewTagNotification,
     log_notifications,
@@ -30,9 +33,8 @@ logger = logging.getLogger(__name__)
     context_settings=dict(help_option_names=["-h", "--help"]),
 )
 @click.option("--debug", is_flag=True, default=False, help="Enable debug logging")
-@click.option("--image-pattern", help="Only look at images matching this pattern")
 @click.option("--namespace", help="Only look in this namespace")
-def main(debug: bool, image_pattern: str, namespace: str) -> None:
+def main(debug: bool, namespace: str) -> None:
     """
     Checks a kubernetes cluster to see if any running pods, cron jobs or deployments have updated image tags or image
     digests on their repositories.
@@ -61,9 +63,11 @@ def main(debug: bool, image_pattern: str, namespace: str) -> None:
 
     for resource, containers in sorted(images.items()):
         logger.info(
-            "Considering {kind}: {name}".format(kind=resource.kind, name=resource.name)
+            "Considering {kind}: {name} ({container_count} running containers)".format(
+                kind=resource.kind, name=resource.name, container_count=len(containers)
+            )
         )
-        notifications.extend(check_resouce_for_new_image_tags(resource, image_pattern))
+        notifications.extend(check_resouce_for_new_image_tags(resource))
         notifications.extend(
             check_resource_containers_for_updated_image_digests(resource, containers)
         )
@@ -72,8 +76,12 @@ def main(debug: bool, image_pattern: str, namespace: str) -> None:
 
 
 def get_top_level_resources(namespace: str) -> Dict[Resource, Container]:
-    return get_top_level_deployments(namespace)
-    # return get_top_level_pods(namespace)
+    return {
+        **get_top_level_daemon_sets(namespace),
+        **get_top_level_stateful_sets(namespace),
+        **get_top_level_deployments(namespace),
+        **get_top_level_pods(namespace),
+    }
 
 
 def check_resource_containers_for_updated_image_digests(
@@ -109,19 +117,17 @@ def check_resource_containers_for_updated_image_digests(
     return notifications
 
 
-def check_resouce_for_new_image_tags(
-    resource: Resource, image_pattern_to_match: Optional[str]
-) -> List[Notification]:
+def check_resouce_for_new_image_tags(resource: Resource) -> List[Notification]:
     notifications = []
     for image in resource.image_spec:
         logger.info(
             "{kind} has image defined: {image}".format(kind=resource.kind, image=image)
         )
         image_name, tag = image.split(":", 1)
-        if image_pattern_to_match and not re.match(image_pattern_to_match, image_name):
-            continue
         if is_versioned_tag(tag):
-            newest_tag = get_newest_tag(image_name)
+            newest_tag = get_newest_tag(
+                image_name, resource.tag_version_pattern_annotation
+            )
             if newest_tag:
                 logger.info("Newest tag for this image is {tag}".format(tag=newest_tag))
                 if newest_tag != "" and newest_tag > parse(tag):
@@ -133,10 +139,6 @@ def check_resouce_for_new_image_tags(
                     "No eligable tags found for {image}".format(image=image_name)
                 )
     return notifications
-
-
-def setup_logging(debug: bool) -> None:
-    level = "DEBUG" if debug else "INFO"
 
 
 coloredlogs.install(milliseconds=True, level="INFO")

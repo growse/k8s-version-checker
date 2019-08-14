@@ -1,4 +1,6 @@
+import functools
 import logging
+import re
 from typing import Tuple, Optional
 
 import requests
@@ -11,16 +13,24 @@ logger = logging.getLogger(__name__)
 digest_correct_hosts = ["quay.io"]
 
 
-def get_newest_tag(image_name: str) -> Optional[str]:
+def get_newest_tag(image_name: str, match_pattern: str = "") -> Optional[str]:
     registry_tags = get_docker_registry_tags(image_name)
     logger.debug("Available registry tags: {tags}".format(tags=registry_tags))
+    if match_pattern:
+        logger.info(
+            "Only matching tags against {pattern}".format(pattern=match_pattern)
+        )
     mapped_tags = sorted(
-        filter(lambda x: isinstance(x, Version), map(parse, registry_tags)),
+        [
+            parse(tag)
+            for tag in registry_tags
+            if isinstance(parse(tag), Version) and re.match(match_pattern, tag)
+        ],
         reverse=True,
     )
     logger.debug("Filtered version tags: {tags}".format(tags=list(mapped_tags)))
-    if len(list(mapped_tags)) > 0:
-        newest_tag = list(mapped_tags)[0]
+    if len(mapped_tags) > 0:
+        newest_tag = mapped_tags[0]
         return newest_tag
     return None
 
@@ -79,6 +89,7 @@ def get_docker_registry_tags(image: str) -> dict:
     return response.json()["tags"]
 
 
+@functools.lru_cache()
 def get_docker_tag_digest(image: str, tag: str) -> str:
     host, image_name = get_registry_host_and_image(image)
     response = docker_registry_api_get(
