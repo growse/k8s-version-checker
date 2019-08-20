@@ -11,6 +11,11 @@ class Resource:
     tag_version_pattern_annotation: str
     image_spec: FrozenSet[str]
 
+    def __str__(self):
+        return "{kind}: {name} ({uid})".format(
+            kind=self.kind, name=self.name, uid=self.uid
+        )
+
 
 @dataclass(frozen=True)
 class Container:
