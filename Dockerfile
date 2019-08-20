@@ -4,11 +4,10 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install dependencies:
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Run the application:
-COPY version_checker /opt/version_checker
-WORKDIR /opt
+WORKDIR /opt/k8s-version-checker
+COPY version_checker version_checker
+COPY tests tests
 CMD ["python", "-m", "version_checker"]
