@@ -1,7 +1,6 @@
 
 # Running
 
-    python -m version_checker  --help
     Usage: version-checker [OPTIONS]
     
       Checks a kubernetes cluster to see if any running pods, cron jobs or
@@ -15,16 +14,16 @@
       This script can be figured using annotations on the pods themselves. Pods
       can be ignored with:
     
-      `growse.com/k8s-version-checker-ignore: "true"`
+      `growse.com/version-checker-ignore: "true"`
     
       And can have their elgiable tags scroped with a regular expression:
     
-      `growse.com/k8s-version-checker-tag-regex: "^v.+?-amd64$"
+      `growse.com/version-checker-tag-regex: "^v.+?-amd64$"
     
     Options:
-      --debug               Enable debug logging
-      --image-pattern TEXT  Only look at images matchin this pattern
-      -h, --help            Show this message and exit.
+      --debug           Enable debug logging
+      --namespace TEXT  Only look in this namespace
+      -h, --help        Show this message and exit.
 
 
 # Testing
