@@ -14,7 +14,12 @@ digest_correct_hosts = ["quay.io"]
 
 
 def get_newest_tag(image_name: str, match_pattern: str = "") -> Optional[str]:
-    registry_tags = get_docker_registry_tags(image_name)
+    try:
+        registry_tags = get_docker_registry_tags(image_name)
+    except Exception:
+        logging.exception("Error fetching tags for {image}".format(image=image_name))
+        return
+
     logger.debug("Available registry tags: {tags}".format(tags=registry_tags))
     if match_pattern:
         logger.info(
@@ -84,6 +89,8 @@ def get_docker_registry_tags(image: str) -> dict:
     response = docker_registry_api_get(
         "https://{host}/v2/{image}/tags/list".format(host=host, image=image_name)
     )
+    if response.status_code != 200:
+        raise Exception("Error fetching tags list", response)
     if "tags" not in response.json():
         raise Exception("Registry response did not contain tags structure")
     return response.json()["tags"]
