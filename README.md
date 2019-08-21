@@ -41,7 +41,7 @@ An example manifest with the relevent roles and permissions is present in `k8s-c
 
 # TODO
 
-- [ ] Notifications
-- [ ] Inspect cron job resources
+- [ ] Notifications. Somehow. K8s events?
+- [x] Inspect cron job resources
 - [ ] Store state of notifications between invocations
 - [ ] Tests for version pattern matching

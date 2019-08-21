@@ -1,12 +1,13 @@
 import logging
-import re
-from typing import Optional, List, Dict
+from typing import List, Dict
 
 import click
 import coloredlogs
 from kubernetes import config
 from packaging.version import parse
 
+from version_checker.k8s import get_api_functions
+from version_checker.k8s.cronjobs import get_top_level_cronjobs
 from version_checker.k8s.daemon_sets import get_top_level_daemon_sets
 from version_checker.k8s.deployments import get_top_level_deployments
 from version_checker.k8s.model import Resource, Container
@@ -76,11 +77,13 @@ def main(debug: bool, namespace: str) -> None:
 
 
 def get_top_level_resources(namespace: str) -> Dict[Resource, Container]:
+    k8s_fetcher_functions = get_api_functions(namespace)
     return {
-        **get_top_level_daemon_sets(namespace),
-        **get_top_level_stateful_sets(namespace),
-        **get_top_level_deployments(namespace),
-        **get_top_level_pods(namespace),
+        **get_top_level_deployments(k8s_fetcher_functions),
+        **get_top_level_daemon_sets(k8s_fetcher_functions),
+        **get_top_level_stateful_sets(k8s_fetcher_functions),
+        **get_top_level_pods(k8s_fetcher_functions),
+        **get_top_level_cronjobs(k8s_fetcher_functions),
     }
 
 

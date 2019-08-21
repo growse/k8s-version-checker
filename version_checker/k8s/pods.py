@@ -7,18 +7,17 @@ from version_checker.k8s import (
     top_level_not_ignored_resource,
     VERSION_PATTERN_ANNOTATION,
     get_container_from_status,
-    get_api_functions,
 )
-from version_checker.k8s.model import Resource
+from version_checker.k8s.model import Resource, K8sFetcherFunctions
 
 logger = logging.getLogger(__name__)
 
 
-def get_top_level_pods(namespace: str) -> Dict[Resource, Container]:
-    get_deployment_fn, get_pod_fn, get_replica_set_fn, get_stateful_set_fn, get_daemon_set_fn = get_api_functions(
-        namespace
-    )
-    k8s_pod_response = get_pod_fn()
+def get_top_level_pods(
+    k8s_fetcher_functions: K8sFetcherFunctions
+) -> Dict[Resource, Container]:
+
+    k8s_pod_response = k8s_fetcher_functions.get_pods_fn()
     top_level_not_ignored_pods = [
         pod for pod in k8s_pod_response.items if top_level_not_ignored_resource(pod)
     ]

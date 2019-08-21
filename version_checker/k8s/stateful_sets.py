@@ -4,21 +4,19 @@ from typing import Dict, List
 from kubernetes.client import V1StatefulSet, V1Pod
 
 from version_checker.k8s import (
-    get_api_functions,
     top_level_not_ignored_resource,
     VERSION_PATTERN_ANNOTATION,
     get_container_from_status,
     get_label_selector_from_dict,
 )
-from version_checker.k8s.model import Resource, Container
+from version_checker.k8s.model import Resource, Container, K8sFetcherFunctions
 
 
-def get_top_level_stateful_sets(namespace: str) -> Dict[Resource, Container]:
-    get_deployment_fn, get_pod_fn, get_replica_set_fn, get_stateful_set_fn, get_daemon_set_fn = get_api_functions(
-        namespace
-    )
+def get_top_level_stateful_sets(
+    k8s_fetcher_functions: K8sFetcherFunctions
+) -> Dict[Resource, Container]:
 
-    k8s_stateful_set_response = get_stateful_set_fn()
+    k8s_stateful_set_response = k8s_fetcher_functions.get_stateful_set_fn()
     top_level_not_ignored_stateful_sets = [
         stateful_set
         for stateful_set in k8s_stateful_set_response.items
@@ -41,7 +39,9 @@ def get_top_level_stateful_sets(namespace: str) -> Dict[Resource, Container]:
             ),
         ): [
             get_container_from_status(pod.spec.node_name, container)
-            for pod in get_pods_for_stateful_set(stateful_set, get_pod_fn)
+            for pod in get_pods_for_stateful_set(
+                stateful_set, k8s_fetcher_functions.get_pods_fn
+            )
             for container in pod.status.container_statuses
         ]
         for stateful_set in top_level_not_ignored_stateful_sets

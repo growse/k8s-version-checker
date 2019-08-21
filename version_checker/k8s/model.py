@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Tuple, Optional, Set, FrozenSet
 
 from attr import dataclass
@@ -22,3 +23,13 @@ class Container:
     server: str
     image: str
     image_id: str
+
+
+@dataclass(frozen=True)
+class K8sFetcherFunctions:
+    get_deployment_fn: partial
+    get_pods_fn: partial
+    get_replica_set_fn: partial
+    get_stateful_set_fn: partial
+    get_daemon_set_fn: partial
+    get_cronjob_fn: partial

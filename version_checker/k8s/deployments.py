@@ -5,20 +5,18 @@ from kubernetes.client import V1Deployment, V1Pod
 
 from version_checker.k8s import (
     top_level_not_ignored_resource,
-    get_api_functions,
     get_container_from_status,
     VERSION_PATTERN_ANNOTATION,
     get_label_selector_from_dict,
 )
-from version_checker.k8s.model import Resource, Container
+from version_checker.k8s.model import Resource, Container, K8sFetcherFunctions
 
 
-def get_top_level_deployments(namespace: str) -> Dict[Resource, Container]:
-    get_deployment_fn, get_pod_fn, get_replica_set_fn, get_stateful_set_fn, get_daemon_set_fn = get_api_functions(
-        namespace
-    )
+def get_top_level_deployments(
+    k8s_fetcher_functions: K8sFetcherFunctions
+) -> Dict[Resource, Container]:
 
-    k8s_deployment_response = get_deployment_fn()
+    k8s_deployment_response = k8s_fetcher_functions.get_deployment_fn()
     top_level_not_ignored_deployments = [
         deployment
         for deployment in k8s_deployment_response.items
@@ -42,7 +40,9 @@ def get_top_level_deployments(namespace: str) -> Dict[Resource, Container]:
         ): [
             get_container_from_status(pod.spec.node_name, container)
             for pod in get_pods_for_deployment(
-                deployment, get_replica_set_fn, get_pod_fn
+                deployment,
+                k8s_fetcher_functions.get_replica_set_fn,
+                k8s_fetcher_functions.get_pods_fn,
             )
             for container in pod.status.container_statuses
         ]
