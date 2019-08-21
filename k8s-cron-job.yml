@@ -1,0 +1,59 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: kube-system
+  name: version-checker
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets", "statefulsets", "deployments", "replicasets"]
+    verbs: ["get", "watch", "list"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: version-checker
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: version-checker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: version-checker
+subjects:
+  - kind: ServiceAccount
+    name: version-checker
+    namespace: kube-system
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: version-checker
+  namespace: kube-system
+  labels:
+    k8s-app: version-checker
+spec:
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          dnsConfig:
+            options:
+              - name: ndots
+                value: "1" # Default here is 5, which breaks resolution
+          containers:
+            - name: version-checker
+              image: growse/k8s-version-checker:latest
+              imagePullPolicy: Always
+          serviceAccountName: version-checker
+          automountServiceAccountToken: true
+          restartPolicy: Never
+
+  schedule: "0 5 * * *"
