@@ -1,5 +1,12 @@
+# About
 
-# Running
+`k8s-version-checker` is a simple script that looks for updated tags of image digests on a kubernetes (k8s) cluster.
+
+# Running `k8s-version-checker`
+
+`k8s-version-checker` can either be run locally where a `~/.kube/config` environment is available, or it can be run on a k8s cluster itself. If the latter, then a common deployment pattern is to use a `CronJob` to scheulde the execution periodically.
+
+An example manifest with the relevent roles and permissions is present in `k8s-cron-job.yml`.
 
     Usage: version-checker [OPTIONS]
     
@@ -31,3 +38,10 @@
 `pytest` is used, and the `pytest-cov` plugin should be available:
 
     pytest --cov=version_checker tests/
+
+# TODO
+
+- [ ] Notifications
+- [ ] Inspect cron job resources
+- [ ] Store state of notifications between invocations
+- [ ] Tests for version pattern matching
