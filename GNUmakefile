@@ -1,9 +1,16 @@
-PKGS := $(shell go list ./... | grep -v /vendor)
+SRC_DIR := src/
+SRC_FILES := $(wildcard $(SRC_DIR)/*.rs)
+
+.PHONY: build
+build: target/debug/k8s-version-checker
 
 .PHONY: test
 test:
-	go test $(PKGS)
+	cargo test
 
 .PHONY: clean
 clean:
-	rm k8s-version-checker
+	rm -rf target
+
+target/debug/k8s-version-checker: $(SRC_FILES)
+	cargo build
