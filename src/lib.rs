@@ -25,19 +25,18 @@ pub async fn get_top_level_k8s_pods(client: APIClient, namespace: &str) -> Resul
                 thing
                     .metadata
                     .as_ref()
-                    .unwrap()
-                    .owner_references
-                    .as_ref()
-                    .unwrap()
-                    .is_empty())
+                    .map(|metadata| metadata.owner_references.as_ref())
+                    .flatten()
+                    .map_or(false, |owners| owners.is_empty())
+            )
             .collect()
         )
         .map_err(|e| e.into())
 }
 
 pub async fn get_top_level_k8s_deployments(client: APIClient, namespace: &str) -> Result<Vec<Deployment>, Box<dyn Error>> {
-    let deployments: Api<Deployment> = Api::namespaced(client, &namespace);
-    deployments
+    let deployments_api: Api<Deployment> = Api::namespaced(client, &namespace);
+    deployments_api
         .list(&ListParams::default())
         .await
         .map(|deployment_list_response| deployment_list_response.items)
@@ -47,20 +46,19 @@ pub async fn get_top_level_k8s_deployments(client: APIClient, namespace: &str) -
                 thing
                     .metadata
                     .as_ref()
-                    .unwrap()
-                    .owner_references
-                    .as_ref()
-                    .unwrap()
-                    .is_empty())
+                    .map(|metadata| metadata.owner_references.as_ref())
+                    .flatten()
+                    .map_or(false, |owners| owners.is_empty())
+            )
             .collect()
         )
         .map_err(|e| e.into())
 }
 
 pub async fn get_top_level_k8s_resources(client: APIClient, namespace: &str) -> Result<String, Box<dyn Error>> {
-
-    dbg!(get_top_level_k8s_deployments(client,namespace).await);
-    Err(MyError::new("Not implemented").into())
+    Ok("Toot".into())
+    // dbg!(get_top_level_k8s_deployments(client,namespace).await);
+    // Err(MyError::new("Not implemented").into())
 }
 
 const DEFAULT_REGISTRY_HOST: &str = "registry-1.docker.io";

@@ -5,25 +5,31 @@ use std::error;
 use futures::TryFutureExt;
 use kube::client::APIClient;
 use kube::config;
+use std::convert::TryInto;
+use futures::future::AndThen;
+use futures::executor::block_on;
 
 #[tokio::main]
-pub async fn main() -> Result<(), Box<dyn error::Error>> {
+async fn main() {
     let namespace = std::env::var("NAMESPACE").unwrap_or("default".into());
-    let client = get_k8s_client()
-        .and_then(|client| k8s_version_checker::get_top_level_k8s_resources(client, &namespace));
-
-    match client.await {
-        Ok(_) => println!("Yay"),
-        Err(e) => println!("Error: {}", e),
+    fn curried(client: APIClient) -> impl Fn(&str) -> Result<String, Box<dyn error::Error>> {
+        k8s_version_checker::get_top_level_k8s_resources(client, &namespace)
     }
-    Ok(())
+
+    match get_k8s_client()
+        .and_then(curried)
+        .await
+    {
+        Ok(thing) => println!("nope"),
+        Err(e) => { println!("e") }
+    }
 }
 
 async fn get_k8s_client() -> Result<APIClient, Box<dyn error::Error>> {
-    return config::load_kube_config()
+    config::load_kube_config()
         .await
         .map_err(|e| e.into())
-        .map(|config| APIClient::new(config));
+        .map(|config| APIClient::new(config))
 }
 
 
